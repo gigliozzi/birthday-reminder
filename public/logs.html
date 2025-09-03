@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Logs • Lembretes (Tema Claro/Escuro)</title>
+  <style>
+    /* ---------- TOKENS ---------- */
+    :root{
+      --bg: #f7f8fb; --panel:#fff; --card:#fff; --text:#0f1623; --muted:#566072;
+      --border:#e5e7eb; --accent:#6941FF; --accent2:#0EA5E9; --ok:#16a34a; --err:#dc2626; --warn:#b45309;
+      --shadow: 0 8px 24px rgba(16,24,40,.08);
+      --row-sent: #f0fdf4; --row-failed:#fef2f2; --row-skipped:#fff7ed;
+    }
+    body.theme-dark{
+      --bg:#0b0b10; --panel:#111218; --card:#141624; --text:#eef1f6; --muted:#9aa0aa;
+      --border:#23263a; --accent:#7c5cff; --accent2:#23b5d3; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b;
+      --shadow: 0 8px 30px rgba(0,0,0,.35);
+      --row-sent:#0f2416; --row-failed:#2a1313; --row-skipped:#241b0f;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background: linear-gradient(180deg, var(--bg), var(--bg) 60%);
+      color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+
+    /* ---------- HEADER ---------- */
+    .header{
+      position: sticky; top:0; z-index:10;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 20px; background: rgba(255,255,255,.8);
+      backdrop-filter: blur(8px); border-bottom:1px solid var(--border);
+    }
+    body.theme-dark .header{ background: rgba(16,18,28,.75); }
+    .brand{display:flex; align-items:center; gap:10px;}
+    .logo{ width:34px; height:34px; border-radius:8px;
+      background: radial-gradient(120% 120% at 0% 100%, var(--accent) 0%, #A78BFA 45%, #e5e7ff 100%);
+      box-shadow: 0 6px 18px rgba(105,65,255,.35), inset 0 0 10px rgba(255,255,255,.6);
+    }
+    body.theme-dark .logo{
+      background: radial-gradient(120% 120% at 0% 100%, var(--accent) 0%, #4a36ff 45%, #2b2f6b 100%);
+      box-shadow: 0 10px 30px rgba(124,92,255,.35), inset 0 0 10px rgba(255,255,255,.12);
+    }
+    .title{font-weight:800; letter-spacing:.2px}
+    .tag{font-size:12px; color:var(--muted); border:1px solid var(--border); padding:3px 8px; border-radius:999px; background:#fff}
+    body.theme-dark .tag{ background:#0f1220; }
+
+    /* NAV */
+    .nav { display:flex; gap:10px; align-items:center; }
+    .nav a{
+      text-decoration:none; font-size:14px; color:var(--muted);
+      border:1px solid var(--border); padding:6px 10px; border-radius:999px; background:#fff;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    body.theme-dark .nav a{ background:#0f1220; }
+    .nav a:hover{ background:#f5f6fa; }
+    body.theme-dark .nav a:hover{ background:#12152a; }
+    .nav a.active{
+      color:#fff; border-color:var(--accent);
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+    }
+
+    /* Botão inline e status */
+    .navbtn{
+      text-decoration:none; font-size:14px; color:#fff;
+      border:1px solid var(--accent); padding:6px 12px; border-radius:999px;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      cursor:pointer;
+    }
+    .navbtn:hover{ opacity:.95; }
+
+    .status-pill{
+      display:inline-flex; align-items:center; gap:8px;
+      font-size:12px; color:var(--muted);
+      border:1px solid var(--border); padding:6px 10px; border-radius:999px; background:#fff;
+    }
+    body.theme-dark .status-pill{ background:#0f1220; }
+    .status-dot{ width:10px; height:10px; border-radius:999px; background:#aaa; }
+    .status-ok .status-dot{ background:var(--ok); }
+    .status-off .status-dot{ background:var(--err); }
+
+    /* ---------- LAYOUT ---------- */
+    .container{ max-width:1200px; margin:18px auto; padding:0 16px; display:grid; gap:16px; }
+
+    /* ---------- PANEL (FILTROS) ---------- */
+    .panel{
+      background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: var(--shadow);
+    }
+    .controls{ display:grid; gap:10px; grid-template-columns: repeat(6, minmax(140px,1fr)); }
+    @media (max-width:1000px){ .controls{ grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width:560px){ .controls{ grid-template-columns: 1fr; } }
+    .controls label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+    .input, .select, .btn{
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+      background:#fff; color:var(--text); font-size:14px; outline:none;
+    }
+    body.theme-dark .input, body.theme-dark .select, body.theme-dark .btn{ background:#0f1220; color:var(--text); }
+
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .muted{ color:var(--muted); font-size:12px; }
+
+    /* ---------- TABELA ---------- */
+    .table-wrap { overflow:auto; border:1px solid var(--border); border-radius: 12px; background:var(--panel); box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; min-width: 980px; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; font-size: 13px; }
+    th { position: sticky; top:0; z-index:1; background:var(--panel); }
+    tr.sent   { background: var(--row-sent); }
+    tr.failed { background: var(--row-failed); }
+    tr.skipped{ background: var(--row-skipped); }
+    .pill{
+      display:inline-block; border:1px solid var(--border); padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted); background:#fff;
+    }
+    body.theme-dark .pill{ background:#0f1220; }
+    .pill.ok{ color:var(--ok); border-color: rgba(34,197,94,.35); }
+    .pill.err{ color:var(--err); border-color: rgba(239,68,68,.35); }
+    .pill.skip{ color:var(--warn); border-color: rgba(180,83,9,.35); }
+
+    .footer { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div class="title">Lembretes • Logs</div>
+        <div class="tag" id="themeLabel">Tema Claro</div>
+      </div>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <nav class="nav">
+        <a href="/contacts-themed.html">Contatos</a>
+        <a href="/logs.html">Logs</a>
+      </nav>
+
+      <button id="btnRunToday" class="navbtn" title="Executa /jobs/run-birthday-check?days=0">Executar hoje</button>
+
+      <span id="srvStatus" class="status-pill">
+        <span class="status-dot"></span>
+        <span id="srvText">Verificando…</span>
+      </span>
+
+      <div class="switch" id="themeSwitch" title="Alternar tema (claro/escuro)" style="display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; border:1px solid var(--border); border-radius:999px; padding:6px 10px; background:#fff;">
+        <div class="dot" style="width:18px; height:18px; border-radius:999px; background: linear-gradient(90deg, var(--accent), var(--accent2)); box-shadow: 0 0 0 2px rgba(0,0,0,.03) inset;"></div>
+        <small id="switchText" class="muted">Alternar tema</small>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <div class="controls">
+        <div>
+          <label for="status">Status</label>
+          <select id="status" class="select">
+            <option value="">(todos)</option>
+            <option value="SENT">SENT</option>
+            <option value="FAILED">FAILED</option>
+            <option value="SKIPPED">SKIPPED</option>
+          </select>
+        </div>
+        <div>
+          <label for="day">Dia</label>
+          <input id="day" type="date" class="input" />
+        </div>
+        <div>
+          <label for="q_name">Contato (nome contém)</label>
+          <input id="q_name" class="input" placeholder="ex.: Ana" />
+        </div>
+        <div>
+          <label for="q_to">Destinatário (e-mail contém)</label>
+          <input id="q_to" class="input" placeholder="ex.: @gmail.com" />
+        </div>
+        <div>
+          <label for="limit">Limite</label>
+          <input id="limit" type="number" min="1" max="500" value="100" class="input" />
+        </div>
+        <div>
+          <label for="offset">Offset</label>
+          <input id="offset" type="number" min="0" value="0" class="input" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <button id="btnLoad" class="btn">Carregar</button>
+        <button id="btnPrev" class="btn">◀ Anterior</button>
+        <button id="btnNext" class="btn">Próximo ▶</button>
+        <button id="btnDownload" class="btn">Baixar CSV</button>
+        <label class="muted" style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+          <input id="autorefresh" type="checkbox" />
+          Auto-refresh
+        </label>
+        <input id="autoint" type="number" min="5" value="30" class="input" style="width:90px" />
+        <span class="muted">seg</span>
+        <span id="info" class="muted" style="margin-left:12px;">–</span>
+      </div>
+    </section>
+
+    <section class="table-wrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Contato</th>
+            <th>Para</th>
+            <th>Assunto</th>
+            <th>Dias</th>
+            <th>Trigger (TZ)</th>
+            <th>Enviado em</th>
+            <th>Mensagem</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <div class="footer">
+      <span class="muted">Dica: Shift+Clique em “Executar hoje” para informar um e-mail específico.</span>
+    </div>
+  </main>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const $tblBody = $("#tbl tbody");
+    const $status = $("#status"), $day = $("#day"), $qname = $("#q_name"), $qto = $("#q_to");
+    const $limit = $("#limit"), $offset = $("#offset");
+    const $btnLoad = $("#btnLoad"), $btnPrev = $("#btnPrev"), $btnNext = $("#btnNext");
+    const $btnDownload = $("#btnDownload"), $auto = $("#autorefresh"), $autoint = $("#autoint");
+    const $info = $("#info");
+    let autoTimer = null;
+
+    /* ---------- THEME ---------- */
+    const THEME_KEY = "contacts_theme";
+    function applyTheme(theme){
+      document.body.classList.toggle("theme-dark", theme === "dark");
+      $("#themeLabel").textContent = theme === "dark" ? "Tema Escuro" : "Tema Claro";
+    }
+    function getTheme(){ return localStorage.getItem(THEME_KEY) || "light"; }
+    function toggleTheme(){
+      const next = getTheme() === "dark" ? "light" : "dark";
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    }
+    (function(){ applyTheme(getTheme()); })();
+    $("#themeSwitch").addEventListener("click", toggleTheme);
+
+    // Menu ativo
+    (function setActiveNav(){
+      const path = (location.pathname || "").toLowerCase();
+      document.querySelectorAll('.nav a').forEach(a => {
+        const href = (a.getAttribute('href') || '').toLowerCase();
+        const isActive =
+          (href.endsWith('/contacts-themed.html') && path.endsWith('/contacts-themed.html')) ||
+          (href.endsWith('/logs.html') && path.endsWith('/logs.html'));
+        if (isActive) a.classList.add('active');
+      });
+    })();
+
+    // Status do servidor
+    async function pingHealth(){
+      const pill = document.getElementById('srvStatus');
+      const text = document.getElementById('srvText');
+      try{
+        const r = await fetch('/health');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        await r.json();
+        pill.classList.remove('status-off'); pill.classList.add('status-ok');
+        text.textContent = 'Servidor OK';
+      }catch(e){
+        pill.classList.remove('status-ok'); pill.classList.add('status-off');
+        text.textContent = 'Servidor off';
+      }
+    }
+    pingHealth(); setInterval(pingHealth, 30000);
+
+    // Executar hoje
+    async function runToday(sendTo){
+      const url = '/jobs/run-birthday-check?days=0' + (sendTo ? '&sendTo='+encodeURIComponent(sendTo) : '');
+      const btn = document.getElementById('btnRunToday');
+      const prev = btn.textContent;
+      try{
+        btn.disabled = true; btn.textContent = 'Executando...';
+        const r = await fetch(url, { method:'POST' });
+        const j = await r.json();
+        if (j.sent > 0) alert('✅ Enviado: '+j.sent+' • Pulados: '+(j.skipped||0));
+        else if (j.skipped > 0) alert('ℹ️ Pulados (já havia envio hoje): '+j.skipped);
+        else alert('⚠️ Nenhum lembrete enviado.\n\n'+JSON.stringify(j));
+        load(); // recarrega tabela
+      }catch(e){
+        alert('Erro: '+e.message);
+      }finally{
+        btn.disabled = false; btn.textContent = prev;
+        pingHealth();
+      }
+    }
+    document.getElementById('btnRunToday').addEventListener('click', () => runToday());
+    document.getElementById('btnRunToday').addEventListener('mousedown', (e) => {
+      if (e.shiftKey) {
+        e.preventDefault();
+        const email = prompt('Enviar para este e-mail específico (opcional):');
+        if (email) runToday(email);
+      }
+    });
+
+    /* ---------- DATA ---------- */
+    function esc(s){ return String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+    function buildQuery(){
+      const p = new URLSearchParams();
+      const status = $status.value.trim().toUpperCase();
+      const day = $day.value.trim();
+      const qname = $qname.value.trim();
+      const qto = $qto.value.trim();
+      const limit = Math.max(1, Math.min(500, Number($limit.value || 100)));
+      const offset = Math.max(0, Number($offset.value || 0));
+      if (["SENT","FAILED","SKIPPED"].includes(status)) p.set("status", status);
+      if (day) p.set("day", day);
+      if (qname) p.set("q_name", qname);
+      if (qto) p.set("q_to", qto);
+      p.set("limit", String(limit)); p.set("offset", String(offset));
+      return p.toString();
+    }
+
+    async function fetchJSON(url){
+      const r = await fetch(url);
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }
+
+    function statusPill(st){
+      if (st === "SENT") return '<span class="pill ok">SENT</span>';
+      if (st === "FAILED") return '<span class="pill err">FAILED</span>';
+      if (st === "SKIPPED") return '<span class="pill skip">SKIPPED</span>';
+      return `<span class="pill">${esc(st)}</span>`;
+    }
+
+    function renderRows(rows){
+      $tblBody.innerHTML = "";
+      for(const row of rows){
+        const tr = document.createElement("tr");
+        tr.className = (row.status||"").toLowerCase(); // sent/failed/skipped
+        tr.innerHTML = `
+          <td>${esc(row.id)}</td>
+          <td>${statusPill(row.status)}</td>
+          <td>${esc(row.contact_name || "")}<div class="muted">${esc(row.contact_email || "")}</div></td>
+          <td>${esc(row.to_email)}</td>
+          <td>${esc(row.subject)}</td>
+          <td>${esc(row.days_ahead)}</td>
+          <td>${esc(row.trigger_date)}</td>
+          <td>${esc(row.sent_at)}</td>
+          <td>${row.error ? `<span class="pill err">${esc(row.error)}</span>` : `<span class="pill ok">OK</span>`}</td>
+          <td>
+            <button class="btn" data-resend="${esc(row.to_email)}" title="Reenviar (force=1)">Reenviar</button>
+          </td>
+        `;
+        tr.querySelector('[data-resend]').addEventListener('click', async () => {
+          const to = row.to_email;
+          if (!confirm('Reenviar agora para '+ to +' (force=1)?')) return;
+          try{
+            const r = await fetch(`/jobs/run-birthday-check?days=${encodeURIComponent(row.days_ahead)}&sendTo=${encodeURIComponent(to)}&force=1`, { method:'POST' });
+            const j = await r.json();
+            alert('Resposta: ' + JSON.stringify(j));
+            load();
+          }catch(e){ alert('Erro: '+e.message); }
+        });
+        $tblBody.appendChild(tr);
+      }
+    }
+
+    async function load(){
+      try{
+        const q = buildQuery();
+        const data = await fetchJSON("/mail-logs?" + q);
+        renderRows(data.rows || []);
+        $info.textContent = `Mostrando ${data.count} registro(s) • limit=${data.limit} • offset=${data.offset}`;
+      }catch(e){
+        $info.textContent = "Erro ao carregar logs: " + e.message;
+      }
+    }
+
+    function startAuto(){ stopAuto(); const sec = Math.max(5, Number($autoint.value || 30)); autoTimer = setInterval(load, sec*1000); }
+    function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer = null; } }
+
+    // eventos
+    $btnLoad.addEventListener("click", load);
+    $btnPrev.addEventListener("click", () => { const cur = Math.max(0, Number($offset.value || 0)); const lim = Math.max(1, Math.min(500, Number($limit.value || 100))); $offset.value = Math.max(0, cur - lim); load(); });
+    $btnNext.addEventListener("click", () => { const cur = Math.max(0, Number($offset.value || 0)); const lim = Math.max(1, Math.min(500, Number($limit.value || 100))); $offset.value = cur + lim; load(); });
+    $auto.addEventListener("change", () => { if($auto.checked) startAuto(); else stopAuto(); });
+    $autoint.addEventListener("change", () => { if($auto.checked) startAuto(); });
+
+    // filtros por enter/blur
+    [$qname, $qto, $day].forEach($el => {
+      $el.addEventListener("keydown", e => { if(e.key === "Enter") load(); });
+      $el.addEventListener("blur", load);
+    });
+    $status.addEventListener("change", load);
+
+    // CSV
+    $btnDownload.addEventListener("click", async () => {
+      const q = buildQuery();
+      const data = await fetchJSON("/mail-logs?" + q);
+      const rows = data.rows || [];
+      const header = ["id","status","contact_name","contact_email","to_email","subject","days_ahead","trigger_date","sent_at","error"];
+      const lines = [header.join(",")];
+      for(const r of rows){
+        const vals = header.map(k => `"${String((r[k] ?? "")).replaceAll(`"`,`""`)}"`);
+        lines.push(vals.join(","));
+      }
+      const blob = new Blob([lines.join("\n")], {type:"text/csv;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "mail-logs.csv"; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // defaults
+    (function init(){
+      const today = new Date().toISOString().slice(0,10);
+      $day.value = today; // padrão: hoje
+      load();
+    })();
+  </script>
+</body>
+</html>

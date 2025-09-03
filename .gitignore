@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs
+*.log
+*.log.*
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Banco SQLite local
+data.db
+
+# Build/Output
+dist/
+build/
+.next/
+.out/
