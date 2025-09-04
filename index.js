@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const Database = require("better-sqlite3");
-
 const cron = require("node-cron");
 const dayjs = require("dayjs");
 const utc = require("dayjs/plugin/utc");
@@ -35,6 +34,42 @@ const DB_PATH = path.resolve(__dirname, "data.db");
 console.log("[DB] usando arquivo:", DB_PATH); // log útil
 const db = new Database(DB_PATH);
 db.pragma("foreign_keys = ON");
+
+function ensureSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contacts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      birthdate TEXT NOT NULL, -- YYYY-MM-DD
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mail_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contact_id INTEGER NOT NULL,
+      subject TEXT,
+      to_email TEXT NOT NULL,
+      message_id TEXT,
+      status TEXT NOT NULL,
+      error TEXT,
+      days_ahead INTEGER NOT NULL,
+      trigger_date TEXT NOT NULL,
+      sent_at TEXT NOT NULL,
+      FOREIGN KEY(contact_id) REFERENCES contacts(id)
+    );
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mail_logs_trigger ON mail_logs(trigger_date, days_ahead);
+    CREATE INDEX IF NOT EXISTS idx_mail_logs_status ON mail_logs(status);
+  `);
+  console.log("[DB] schema ok (contacts, mail_logs)");
+}
+ensureSchema();
 
 
 // === Email transporter ===
